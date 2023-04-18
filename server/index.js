@@ -40,7 +40,7 @@ const httpServer = createServer();
 
 const io = new Server(httpServer, {
     cors: {
-        origin: ["https://admin.socket.io", "http://127.0.0.1:8080","http://localhost:8080"],
+        origin: ["https://admin.socket.io", "http://127.0.0.1:8080", "http://localhost:8080"],
         credentials: true
     }
 });
@@ -55,15 +55,13 @@ io.on("connection", (socket) => {
         // 默认加入 longroom
         socket.join("longroom")
 
-        if (event === "chat") {
+        if (event === "online_chat") {
             console.log("got a chat mutation : ", payload);
 
             store.commit("chat", payload)
 
-            setInterval(() => {
-                let ok = io.to("longroom").emit("chat", payload)
-                console.log("to longroom ok ?", ok);
-            }, 1000)
+            let ok = io.to("longroom").emit("online_chat", payload)
+            console.log("to longroom ok ?", ok);
         }
     })
 })
