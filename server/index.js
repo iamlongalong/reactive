@@ -58,7 +58,7 @@ io.on("connection", (socket) => {
         console.log("got ", event);
         // 默认加入 longroom
 
-        if (event === "chat") {
+        if (event === "online_chat") {
             console.log("got a chat mutation : ", payload);
 
             let xx = store.commit(event, payload);
