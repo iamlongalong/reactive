@@ -93,12 +93,6 @@ function getLastEvent(items) {
 };
 
 
-/**
- * 先只用 version，之后可以加修改的细节
- * @param {number} version change version of this event
- */
-function shouldGoOn();
-
 class MapReactive extends BaseReactive {
     /**
      * @param {Object} m base object.
