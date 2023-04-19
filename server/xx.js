@@ -96,44 +96,6 @@ class MapReactive extends BaseReactive {
     }
 }
 
-class Userx {
-    /**
-     * @param {string} id user id.
-     * @param {Object<string,any>} m normal object.
-     */
-    #name;
-    constructor(id, m) {
-        this.id = id
-        // this.name = m.name || ""
-        this.email = m.email || ""
-        this.desc = m.desc || ""
-        this.avatar = m.avatar || ""
-        this.#name = m.name || ""
-    }
-
-    get name() {
-        return this.#name || "none name"
-    }
-    set name(n) {
-        this.#name = n
-    }
-
-    /**
-     * @returns {Object<string,any>} normal object.
-     */
-    toJson() {
-        return {
-            id: this.id,
-            name: this.name,
-            email: this.email,
-            desc: this.desc,
-            avatar: this.avatar
-        }
-    }
-
-}
-
-
 
 class User {
     /**
@@ -158,16 +120,6 @@ class UsersController extends BaseReactive {
          * @private
          */
         this.users = new Map()
-
-        // this.emitter = new EventEmitter({ captureRejections: true })
-    }
-
-    /**
-     * @param {string} id user id.
-     * @returns {User} user.
-     */
-    getUser(id) {
-        return this.users.get(id)
     }
 
     /**
@@ -177,17 +129,10 @@ class UsersController extends BaseReactive {
      * @returns {User} user.
      */
     getUser(id, f) {
-        let u = this.users.get(id)
-        this.watchUser(id, f)
-        return u
-    }
+        let user = this.users.get(id)
+        this.watch(id, f)
 
-    /**
-     * @param {string} id user id.
-     * @param {function(User)} f function when user updated.
-     */
-    watchUser(id, f) {
-        this.emitter.on(id, f)
+        return user
     }
 
     /**
@@ -196,226 +141,499 @@ class UsersController extends BaseReactive {
      */
     updateUser(id, user) {
         this.users.set(id, user)
-
         this.emitter.emit(id, user)
     }
 }
 
 
-class TeamMember {
+class TeamMemberInfo {
     /**
-     * @param {UsersController} userscontroller users controller.
-     * @param {string} id user id.
-     * @param {User} user user id.
-     * @param {string} occupation occupation of user.
-     * @param {string} role user role.
+     * @param {string} tid team id
+     * @param {string} uid user id
+     * @param {Object<string,any>} m 
      */
-    constructor(id, occupation, role, userscontroller, onupdate) {
-        this.id = id
-
-        userscontroller.getUser(id, (user) => {
-            this.updateUser(user)
-        })
-        this.occupation = occupation
-        this.role = role
-    }
-
-    /**
-    * @param {User} user user id.
-    */
-    updateUser(user) {
-        this.avatar = user.avatar
-        this.desc = user.desc
-        this.name = user.name
-        this.email = user.email
+    constructor(tid, uid, m) {
+        this.tid = tid
+        this.uid = uid
+        this.occupation = m.occupation || ""
+        this.role = m.role || "onlooker"
     }
 }
 
-class globalTeamMembersController extends BaseReactive {
+class TeamMemberInfoController extends BaseReactive {
     constructor() {
         super()
 
-        this.tmControllers = new Map()
+        /**
+         * @type {Map<string,TeamMemberInfo>}
+         * @private
+         */
+        this.meminfos = new Map() // 姑且用 map，之后换成一系列 adaptor，例如从数据库取数据
+    }
+    /**
+     * @param {string} tid team id
+     * @param {string} uid user id
+     * @param {function(TeamMemberInfo)} f function when user updated.
+     * @returns {TeamMemberInfo}  update func
+     */
+    getMemberInfo(tid, uid, f) {
+        let id = this._genid(tid, uid)
+        let m = this.meminfos.get(id)
+
+        this.watch(id, f)
+
+        return m
     }
 
     /**
-     * @param {string} tid team id.
-     * @param {funciton(TeamMembersController)} f team.
-     * @returns {TeamMembersController} userscontroller users controller.
+     * @param {string} tid team id
+     * @param {string} uid user id
+     * @param {TeamMemberInfo} m 
      */
-    getTeamMemControllers(tid, f) {
-        this.watch(tid, f)
+    setMemberInfo(tid, uid, m) {
+        let id = this._genid(tid, uid)
+        this.meminfos.set(id, m)
 
-        return this.tmControllers.get(tid)
+        this.update(id, m)
     }
 
     /**
-     * @param {string} tid team id.
-     * @param {TeamMembersController} tm users controller.
+     * @param {string} tid team id
+     * @param {string} uid user id
+     * @returns {string}
      */
-    setTeamMemControllers(tid, tm) {
-        this.tmControllers.set(tid, tm)
-        this.update(tid, tm)
+    _genid(tid, uid) {
+        return `${tid}:${uid}`
+    }
+
+}
+
+class TeamMember {
+    /**
+     * @param {User} user user
+     * @param {TeamMemberInfo} mi member info
+     */
+    constructor(user, mi) {
+        this.id = user.id || ""
+        this.name = user.name || ""
+        this.email = user.email || ""
+        this.occupation = mi.occupation || ""
+        this.role = mi.role || ""
+    }
+
+    /**
+     * @returns {Map<string,any>}.
+     */
+    toJson() {
+        let res = {
+            id: this.id,
+            name: this.name,
+            email: this.email,
+            occupation: this.occupation,
+            role: this.role,
+        }
+
+        return res
+    }
+}
+
+class TeamMembers {
+    /**
+     * @param {string} tid team id
+     * @param {UsersController} usersController users controller.
+     * @param {TeamMemberInfoController} teamMemberInfoController users controller.
+     * @param {Array<string>} uids users id.
+     * @param {funciton(TeamMembers)} f update func.
+     */
+    constructor(tid, usersController, teamMemberInfoController, uids, f) {
+        super()
+
+        this.tid = tid
+        this.usersController = usersController
+        this.teamMemberInfoController = teamMemberInfoController
+
+        /**
+         * @type {Map<string,TeamMember>}
+         * @private
+         */
+        this.members = new Map()
+        this.f = f
+
+        this._setMembers(uids)
+    }
+
+
+
+    /**
+     * @param {Array<string>} uids users id.
+     */
+    setMembers(uids) {
+        this.members = new Map()
+
+        return this.addMember(uids)
+    }
+
+    /**
+     * @param {Array<string>} uids users id.
+     */
+    _setMembers(uids) {
+        uids.forEach(uid => {
+            let user = this.usersController.getUser(uid, this.onUserChange)
+
+            let ti = this.teamMemberInfoController.getMemberInfo(this.tid, uid, this.onMemberInfoChanged)
+
+            let member = new TeamMember(user, ti)
+            this.members.set(uid, member)
+        })
+    }
+    /**
+     * @param {Array<string>} uids users id.
+     */
+    addMember(uids) {
+        this._setMembers(uids)
+
+        this.dispatch()
+    }
+
+    // 姑且先 dispatch this, 之后可以用 event 做细节控制
+    dispatch() {
+        this.f(this)
+    }
+
+    /**
+     * @param {User} user user.
+     */
+    onUserChange(user) {
+        let m = this.members.get(user.id)
+        if (!m) {
+            return
+        }
+
+        m.name = user.name
+        m.email = user.email
+        m.avatar = user.avatar
+        m.desc = user.desc
+
+        this.members.set(user.id, m)
+
+        this.dispatch()
+    }
+
+    /**
+     * @param {TeamMemberInfo} mi .
+     */
+    onMemberInfoChanged(mi) {
+        let m = this.members.get(mi.uid)
+        if (!m) {
+            return
+        }
+
+        m.occupation = mi.occupation
+        m.role = mi.role
+
+        this.members.set(mi.uid, m)
+
+        this.dispatch()
+    }
+
+    /**
+     * @returns {Object<string,any>}.
+     */
+    toJson() {
+        let res = {}
+
+        this.members.forEach((v, k) => {
+            res[k] = v.toJson()
+        })
+
+        return res
     }
 }
 
 
 class TeamMembersController extends BaseReactive {
     /**
-     * @param {string} tid team id.
-     * @param {UsersController} userscontroller users controller.
+     * @param {UsersController} usersController users controller.
+     * @param {TeamMemberInfoController} tiController team info controller.
      */
-    constructor(tid, userscontroller) {
+    constructor(usersController, tiController) {
         super()
-        this.teamid = tid
-        this.userscontroller = userscontroller
 
         /**
-         * @type {Object<string,TeamMember>}
+         * @type {Object<string, TeamMembers>}
          */
-        this.members = new Map()
+        this.tmembers = new Map()
+
+        /**
+         * @type {Object<string, Array<string>>}
+         */
+        this.tidToUids = new Map()
+
+        this.usersController = usersController
+        this.tiController = tiController
     }
 
     /**
-     * @param {string} uid user id.
-     * @param {function(TeamMember)} f users controller.
+     * 内部设置 tid to uids, 类似于设置 user_to_team 表
+     * @param {string} tid team id.
+     * @param {Array<string>} uids users id.
      */
-    getTeamMember(id, f) {
-        let tm = this.members.get(id)
-
-        this.watch(id, f)
+    _setTidToUids(tid, uids) {
+        this.tidToUids[tid] = uids
     }
 
     /**
-     * @param {string} id user id.
-     * @param {TeamMember} tm user role.
+     * 设置 tid to uids, 类似于设置 user_to_team 表
+     * @param {string} tid team id.
+     * @param {Array<string>} uids users id.
      */
-    updateTeamMember(id, tm) {
-        this.members.set(id, tm)
-        this.update(id, tm)
+    setTidToUids(tid, uids) {
+        this._setTidToUids(tid, uids)
+
+        let tms = this._getMembers(tid)
+
+        this.dispatch(tid, tms)
     }
 
     /**
-     * @param {function(TeamMember)} f users controller.
-     * @returns {Object<string,TeamMember>}
+     * 内部获取 members，若无则创建
+     * @param {string} tid team id.
      */
-    getAll(f) {
-        let members = new Map()
-        Object.keys(this.members).forEach(k => {
-            let t = this.getTeamMember(k, f)
-            members.set(k, t)
-        })
+    _getMembers(tid) {
+        // 按理应该从
+        let uids = this.tidToUids[tid]
+        let tms = new TeamMembers(tid, this.usersController, this.tiController, uids, (tms) => this.dispatch(tm.tid, tms))
 
-        return members
+        this.tmembers.set(tid, tms)
+        return tms
     }
-}
 
-class MembersController extends BaseReactive {
     /**
-     * @param {UsersController} userscontroller users controller.
-     * @param {string} userid user id.
-     * @param {string} occupation occupation of user.
-     * @param {string} role user role.
+     * 外部获取 team members，并设置监听
+     * @param {string} tid team id.
+     * @param {function(TeamMembers)} f users controller.
+     * @returns {TeamMembers} team members
      */
-    constructor(userscontroller, userid, occupation, role) {
-
-        userscontroller.getUser(userid, (user) => {
-            this.updateuser(user)
-        })
-
-        super(id, user)
-        this.occupation = occupation
-        this.role = role
-    }
-
-    getMemberSets(ids = []) {
-        for (id of ids) {
-
+    getTeamMembers(tid, f) {
+        let tms = this.members.get(tid)
+        if (!tms) {
+            tms = this._getMembers(tid)
         }
+
+        this.watch(tid, f)
+        return tms
     }
 
     /**
-     * @param {User} user user
+     * @param {string} tid team id.
+     * @param {TeamMembers} tms team members
      */
-    updateuser(user) {
-        this.id = user.id
-        this.avatar = user.avatar
-        this.desc = user.desc
-        this.name = user.name
-        this.email = user.email
+    dispatch(tid, tms) {
+        this.update(tid, tms)
     }
 }
 
-class TeamPO {
-    constructor(id, m) {
+
+
+class Document {
+    /**
+     * @param {Object<string, any>} m users controller.
+     */
+    constructor(m) {
+        this.id = m.id || ""
+        this.name = m.name || ""
+        this.updated_at = m.updated_at || ""
+        this.cover = m.cover || ""
+    }
+
+    /**
+     * @param {Object<string, any>} m users controller.
+     */
+    toJson() {
+        let res = {
+            id: this.id,
+            name: this.name,
+            updated_at: this.updated_at,
+            cover: this.cover,
+        }
+
+        return res
+    }
+}
+
+class DocumentController extends BaseReactive {
+    /**
+     * @param {string} tid team id
+     * @param {TeamMembersController} tmsController users controller.
+     * @param {TeamInfo} ti teaminfo.
+     * @param {funciton(Team)} f update func.
+     */
+    constructor() {
         /**
-         * @param {string} id team id.
-         * @param {Object<string,any>} m normal object.
+         * @type {Map<string, Document>}
          */
-        this.id = id
+        this.docs = new Map()
+    }
+
+    /**
+     * @param {string} did document id.
+     * @param {funciton(Document)} f update func.
+     */
+    getDocument(did, f) {
+        let doc = this.docs.get(did)
+        this.watch(did, f)
+
+        return doc
+    }
+
+}
+
+
+class ProjectInfo {
+    /**
+     * @param {Object<string, any>} m
+     */
+    constructor(m) {
+        this.id = m.id || ""
+        this.name = m.name || ""
+    }
+
+    /**
+     * @param {Object<string, any>} m users controller.
+     */
+    toJson() {
+        let res = {
+            id: this.id,
+            name: this.name,
+            desc: this.desc,
+            icon: this.icon,
+        }
+
+        return res
+    }
+}
+
+class Project {
+    /**
+     * @param {string} pid project id
+     * @param {TeamMembersController} tmsController users controller.
+     * @param {TeamInfo} ti teaminfo.
+     * @param {funciton(Team)} f update func.
+     */
+    constructor(tid, tmsController, ti, f) {
+        this.id = tid
+        this.name = ti.name
+        this.desc = ti.desc
+        this.icon = ti.icon
+
+        this.members = tmsController.getTeamMembers(tid, this.onTeamMemberChange)
+
+        this.f = f
+    }
+
+    /**
+     * @param {TeamMembers} tms team members.
+     */
+    onTeamMemberChange(tms) {
+        this.members = tms
+
+        this.dispatch()
+    }
+
+    dispatch() {
+        this.f(this)
+    }
+
+    /**
+     * @param {Object<string, any>} m users controller.
+     */
+    toJson() {
+        let res = {
+            id: this.id,
+            name: this.name,
+            desc: this.desc,
+            icon: this.icon,
+            members: this.members.toJson(),
+        }
+
+        return res
+    }
+}
+
+class TeamInfo {
+    /**
+     * @param {Object<string, any>} m users controller.
+     */
+    constructor(m) {
+        this.id = m.id || ""
         this.name = m.name || ""
         this.desc = m.desc || ""
         this.icon = m.icon || ""
-        this.members = m.members || []
     }
-}
 
-class TeamBO {
     /**
-     * @param {TeamPO} tpo team po.
-     * @param {Object<string,any>} m normal object.
+     * @param {Object<string, any>} m users controller.
      */
-    constructor(tpo, membersBuilder) {
-
-    }
-
-    updateMembers(ids = []) {
-
-    }
-}
-
-class MembersController extends BaseReactive {
-    constructor() {
-        super()
-        this.members = new Map()
-    }
-
-    getMember(id) {
-        return this.members.get(id)
-    }
-    getWatchMember(id, f) {
-        let m = this.members.get(id)
-        this.watch(id, f)
-        return m
-    }
-}
-
-class MemberSet {
-    /**
-     * @param {[]<string>} ids user ids.
-     * @param {MembersController} membersBuilder normal object.
-     */
-    constructor(ids, membersBuilder) {
-        this.set = new Map()
-
-        for (id of ids) {
-            membersBuilder.avatar
+    toJson() {
+        let res = {
+            id: this.id,
+            name: this.name,
+            desc: this.desc,
+            icon: this.icon,
         }
+
+        return res
     }
 }
 
-class MemberPO {
-    constructor(id, user) {
-        this.id = id
-        this.user = user
+class Team {
+    /**
+     * @param {string} tid team id
+     * @param {TeamMembersController} tmsController users controller.
+     * @param {TeamInfo} ti teaminfo.
+     * @param {funciton(Team)} f update func.
+     */
+    constructor(tid, tmsController, ti, f) {
+        this.id = tid
+        this.name = ti.name
+        this.desc = ti.desc
+        this.icon = ti.icon
+
+        this.members = tmsController.getTeamMembers(tid, this.onTeamMemberChange)
+
+        this.f = f
     }
+
+    /**
+     * @param {TeamMembers} tms team members.
+     */
+    onTeamMemberChange(tms) {
+        this.members = tms
+
+        this.dispatch()
+    }
+
+    dispatch() {
+        this.f(this)
+    }
+
+    /**
+     * @param {Object<string, any>} m users controller.
+     */
+    toJson() {
+        let res = {
+            id: this.id,
+            name: this.name,
+            desc: this.desc,
+            icon: this.icon,
+            members: this.members.toJson(),
+        }
+
+        return res
+    }
+
 }
 
-class MemberBO {
-    constructor(id, usersBuilder) {
-
-    }
-}
 
 class TeamsController extends BaseReactive {
     constructor() {
