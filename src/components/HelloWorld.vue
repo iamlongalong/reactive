@@ -1,9 +1,7 @@
 <template>
   <div class="hello">
     <div>
-      <!-- <div v-for="i of users">
-        {{ i }}
-      </div> -->
+      {{ chats }}
     </div>
     <input type="text" placeholder="输入要说的话" v-model="msg">
     <input type="button" value="发送一下" v-on:click="sendmsg">
@@ -11,7 +9,6 @@
 </template>
 
 <script>
-import store from '../store';
 import { mapState } from 'vuex'
 
 export default {
@@ -22,12 +19,12 @@ export default {
     };
   },
   computed: {
-    // ...mapState(["users", "chats"])
+    ...mapState(["users", "chats"])
   },
   methods: {
     sendmsg() {
       window.xx = this
-      this.$socket.emit("online_chat", this.msg)
+      this.$socket.emit("chat", this.msg)
     }
   }
 };

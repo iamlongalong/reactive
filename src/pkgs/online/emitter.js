@@ -76,7 +76,6 @@ export default class EventEmitter {
    * @param args
    */
   dispatchStore(event, args) {
-
     if (this.store && this.store._actions) {
 
       let prefixed_event = this.actionPrefix + event;

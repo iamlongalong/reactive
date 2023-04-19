@@ -2,25 +2,28 @@ const { createServer } = require("http");
 const { Server } = require("socket.io");
 const { instrument } = require("@socket.io/admin-ui");
 
-const vuex = require("vuex")
+const vuex = require("vuex");
 
 const store = vuex.createStore({
-    state() {
-        return {
-            users: {
-                "0001": {
-                    name: "longalong",
-                    age: 18,
-                    gender: "male"
-                }
-            },
-            chats: [
-                {
-                    "from": "0001",
-                    "to": "all",
-                    "content": "hello world"
-                }
-            ]
+    state: {
+        users: {
+            "0001": {
+                name: "longalong",
+                age: 18,
+                gender: "male"
+            }
+        },
+        chats: [
+            {
+                "from": "0001",
+                "to": "all",
+                "content": "hello world"
+            }
+        ]
+    },
+    actions: {
+        chat({state, commit}, e) {
+            return {xx: 123, e}
         }
     },
     mutations: {
@@ -29,44 +32,42 @@ const store = vuex.createStore({
                 from: payload.uid || "",
                 to: payload.data?.to || "",
                 content: payload.data?.content || ""
-            }
+            };
 
-            state.chats.push(chatcontent)
+            state.chats.push(chatcontent);
+            return chatcontent;
         }
     }
-})
+});
 
 const httpServer = createServer();
 
 const io = new Server(httpServer, {
     cors: {
-        origin: ["https://admin.socket.io", "http://127.0.0.1:8080","http://localhost:8080"],
+        origin: ["https://admin.socket.io", "http://127.0.0.1:8080", "http://localhost:8080"],
         credentials: true
     }
 });
 
-const rooms = new Set(["longroom"])
+const rooms = new Set(["longroom"]);
 
 io.on("connection", (socket) => {
-    console.log(socket);
+    socket.join("longroom");
+
     socket.onAny(async (event, payload) => {
         console.log("got ", event);
-
         // 默认加入 longroom
-        socket.join("longroom")
 
         if (event === "chat") {
             console.log("got a chat mutation : ", payload);
 
-            store.commit("chat", payload)
+            let xx = store.commit(event, payload);
+            console.log("after commit : ", xx)
 
-            setInterval(() => {
-                let ok = io.to("longroom").emit("chat", payload)
-                console.log("to longroom ok ?", ok);
-            }, 1000)
+            io.to("longroom").emit(event, payload);
         }
-    })
-})
+    });
+});
 
 // 添加 admin
 instrument(io, {

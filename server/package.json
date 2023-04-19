@@ -1,0 +1,20 @@
+{
+  "name": "longchatserver",
+  "version": "1.0.0",
+  "description": "longchat server for reactive demo",
+  "author": "iamlongalong@gmail.com",
+  "private": true,
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.6.1",
+    "vuex": "^4.1.0"
+  },
+  "devDependencies": {
+  },
+  "engines": {
+    "node": ">= 6.0.0",
+    "npm": ">= 3.0.0"
+  }
+}

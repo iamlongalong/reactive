@@ -1,20 +1,28 @@
+import Vue from 'vue';
 import Vuex from 'vuex';
 
-const store = new Vuex.Store({
+Vue.use(Vuex);
+
+export default new Vuex.Store({
   state: {
     users: {},
     chats: []
   },
   mutations: {
-    "online_chat": (args) => {
-      console.log("got online chat", args);
+    "online_chat": (state, payload) => {
+      console.log("got online chat", payload);
+      let chatcontent = {
+        from: payload.uid || "",
+        to: (payload.data && payload.data.to) || "",
+        content: (payload.data && payload.data.content) || ""
+      };
+
+      state.chats.push(chatcontent);
     }
   },
   actions: {
-    "online_join": (args) => {
-      console.log("got online join", args);
+    "online_join": ({ state, commit }, e) => {
+      console.log("got online join", e);
     }
   }
 });
-
-export default store;
