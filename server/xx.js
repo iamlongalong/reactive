@@ -3,30 +3,69 @@ let EventEmitter = require("events");
 
 class REvent {
     /**
-     * 先只用 version，之后可以加修改的细节
-     * @param {number} version change version of this event
+     * @param {string} key key
+     * @param {any} val change data
+     * @param {number} version change version
      */
-    constructor(version) {
+    constructor(key, val, version) {
+        this.key = key
+        this.val = val
         this.version = version;
     }
+    /**
+     * @param {string} key key
+     * @param {REvent} event event
+     * @returns {REvent} event
+     */
+    withEvent(key, event) {
+        return new REvent(key, event, event.version)
+    }
+
+    /**
+     * @returns {boolean} is wrapped event
+     */
+    isWrapEvent() {
+        return this.val instanceof REvent
+    }
+
+    /**
+     * @returns {REvent|undefined} wrapped event
+     */
+    getWrapEvent() {
+        if (this.isWrapEvent()) {
+            return this.val
+        }
+
+        return
+    }
+
+    /**
+     * @returns {any}
+     */
+    getVal() {
+        return this.val
+    }
+
 }
 
 class EventManager {
+    #version;
     /**
      * @param {number} baseVersion
      */
     constructor(baseVersion) {
-        this.version = baseVersion;
+        this.#version = baseVersion;
     }
 
     /**
+     * @param {string} key
      * @param {any} val
      * @returns {REvent}
      */
-    newEvent(val) {
-        let e = new REvent(this.version);
+    newEvent(key, val) {
+        let e = new REvent(key, val, this.#version);
 
-        this.version++;
+        this.#version++;
         return e;
     }
 }
@@ -41,7 +80,7 @@ class BaseReactive extends Object {
         /**
          * @type {Array<REvent>} event list
          */
-        this.#events = new Array();
+        // this.#events = new Array();
     }
 
     /**
@@ -64,18 +103,17 @@ class BaseReactive extends Object {
 
     /**
      * update key value
-     * @param {REvent} event event detail of change
      * @param {string} key The key of the element to add to this YMap
+     * @param {REvent} event event detail of change
      * @param {any} v value
      */
-    update(key, event, v) {
-        let le = getLastEvent(this.#events);
-        if (!!le && le.version >= event.version) {
-            return;
-        }
+    update(event) {
+        // let le = getLastEvent(this.#events);
+        // if (!!le && le.version >= event.version) {
+        //     return;
+        // }
 
-        this.#events.push(event);
-        this.#emitter.emit(key, event, v);
+        this.#emitter.emit(event.key, event);
         return;
     }
 }
@@ -187,7 +225,10 @@ class User {
 }
 
 class UsersController extends BaseReactive {
-    constructor() {
+    /**
+     * @param {EventManager} em evemnt manager.
+     */
+    constructor(em) {
         super();
 
         /**
@@ -195,6 +236,7 @@ class UsersController extends BaseReactive {
          * @private
          */
         this.members = new Map();
+        this.em = em
     }
 
     /**
@@ -215,10 +257,12 @@ class UsersController extends BaseReactive {
      * @param {string} id user id.
      * @param {User} user when .
      */
-    updateUser(id, event, user) {
+    updateUser(id, user) {
         this.members.set(id, user);
 
-        this.update(id, event, user);
+        let event = this.em.newEvent(id, user)
+
+        this.update(event);
     }
 }
 
@@ -238,7 +282,10 @@ class TeamMemberInfo {
 }
 
 class TeamMemberInfoController extends BaseReactive {
-    constructor() {
+    /**
+     * @param {EventManager} em event manager.
+     */
+    constructor(em) {
         super();
 
         /**
@@ -246,12 +293,13 @@ class TeamMemberInfoController extends BaseReactive {
          * @private
          */
         this.meminfos = new Map(); // 姑且用 map，之后换成一系列 adaptor，例如从数据库取数据
+        this.em = em // 所有的 controller 都需要有创建 event 的能力
     }
     /**
      * @param {string} tid team id
      * @param {string} uid user id
      * @param {function(TeamMemberInfo)} f function when user updated.
-     * @returns {TeamMemberInfo}  update func
+     * @returns {REvent}  update func
      */
     getMemberInfo(tid, uid, f) {
         let id = this._genid(tid, uid);
@@ -271,7 +319,8 @@ class TeamMemberInfoController extends BaseReactive {
         let id = this._genid(tid, uid);
         this.meminfos.set(id, mi);
 
-        this.update(id, mi);
+        let event = this.em.newEvent(id, mi)
+        this.update(event);
     }
 
     /**
@@ -1380,8 +1429,10 @@ class IndexViewController extends BaseReactive {
 
 // c.updateUser(x.id, x)
 
+let em = new EventManager(1)
+
 // users
-let uController = new UsersController();
+let uController = new UsersController(em);
 let u1_id = "1001";
 let u1 = new User(u1_id, { name: "longalong", email: "long@longalong.cn", desc: "hello world", avatar: "/static/img/user_1001.jpg" });
 
