@@ -50,7 +50,7 @@ export default class OnlineState {
       return connection;
     } else if (typeof connection === 'string') {
 
-      return this.io = SocketIO(connection, options);
+      return SocketIO(connection, options);
     } else {
 
       throw new Error('Unsupported connection type');

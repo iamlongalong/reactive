@@ -1,5 +1,6 @@
 const { log } = require("console");
 let EventEmitter = require("events");
+const { Socket } = require("socket.io");
 
 class REvent {
     /**
@@ -64,18 +65,19 @@ class BaseReactive extends Object {
 
     /**
      * update key value
-     * @param {REvent} event event detail of change
+    //  * @param {REvent} event event detail of change
      * @param {string} key The key of the element to add to this YMap
      * @param {any} v value
      */
-    update(key, event, v) {
-        let le = getLastEvent(this.#events);
-        if (!!le && le.version >= event.version) {
-            return;
-        }
+    update(key, v) {
+        // update(key, event, v) {
+        // let le = getLastEvent(this.#events);
+        // if (!!le && le.version >= event.version) {
+        //     return;
+        // }
 
-        this.#events.push(event);
-        this.#emitter.emit(key, event, v);
+        // this.#events.push(event);
+        this.#emitter.emit(key, v);
         return;
     }
 }
@@ -211,14 +213,13 @@ class UsersController extends BaseReactive {
     }
 
     /**
-     * @param {REvent} event event.
      * @param {string} id user id.
      * @param {User} user when .
      */
-    updateUser(id, event, user) {
+    updateUser(id, user) {
         this.members.set(id, user);
 
-        this.update(id, event, user);
+        this.update(id, user);
     }
 }
 
@@ -1275,11 +1276,17 @@ class IndexView {
          * @type {User}
          */
         this.user = uController.getUser(uid, u => this.onUserChange(u));
+        if (!this.user) {
+            return null // 姑且这么处理吧
+        }
 
         /**
          * @type {Teams}
          */
         this.teams = utsController.getTeams(uid, t => this.onTeamsChange(t));
+        if (!this.teams) {
+            return null // 姑且这么处理吧
+        }
 
         this.f = f;
     }
@@ -1370,15 +1377,90 @@ class IndexViewController extends BaseReactive {
 
 }
 
-// let c = new UsersController();
+class IndexViewWsHandler extends BaseReactive {
+    /**
+     * @param {IndexViewController} idxViewCtl user controller.
+     */
+    constructor(idxViewCtl) {
+        super();
 
-// c.watchUser("1001", (user) => {
-//     console.log("watch user func ", user);
-// });
+        /**
+         * @type {Map<string, funciton>}
+         */
+        this.socksFuncMap = new Map();
 
-// let x = new User("1001", { name: "longalong", email: "long@longalong.cn", desc: "hello world", avatar: "/static/img/user_1001.jpg" });
+        this.idxViewCtl = idxViewCtl;
 
-// c.updateUser(x.id, x)
+        /**
+         * @type {Map<string, any>}
+         */
+        this.idxViewCache = new Map();
+
+    }
+
+    /**
+     * @param {string} uid user id.
+     * @returns {Object<string, any>} json type idxView.
+     */
+    getIdxView(uid) {
+        let idxView = this.idxViewCtl.getUserIndexView(uid, (idxView) => {
+            // 1. 更新 cache
+            let idxJson = idxView.toJson();
+            this.idxViewCache.set(uid, idxJson);
+
+            // 2. 通知更新. 这里可以改成 lazy update，用于把多个 update 合成一个
+            this.update(uid, idxJson);
+        });
+
+        if (!idxView) { // 不存在user，姑且先这个返回，之后用 error 信息返回
+            return {}
+        }
+
+        let idxJson = idxView.toJson();
+        this.idxViewCache.set(uid, idxJson);
+        return idxJson;
+    }
+
+    // 处理获取 index view
+    handleGetIndexView(socket, event, payload) {
+        let uid = payload.uid;
+        if (!uid) {
+            socket.emit("watchIndexViewFail", "uid must be set");
+            return;
+        }
+
+        let idxViewJson = this.idxViewCache.get(uid);
+        if (!idxViewJson) {
+            idxViewJson = this.getIdxView(uid);
+        }
+
+        let func = (uid, idxViewJson) => {
+            console.log("handler go idx view changed", uid, idxViewJson);
+
+            socket.emit("indexViewChanged", idxViewJson);
+        };
+
+        this.socksFuncMap.set(socket.id, func);
+
+        this.watch(uid, func);
+
+        socket.emit("indexViewChanged", idxViewJson)
+        log("emited ", idxViewJson)
+    }
+
+    // 处理不再监听 index view
+    handleRemoveIndexView(socket, event, payload) {
+        let func = this.socksFuncMap.get(socket.id);
+        let uid = payload.uid || "";
+
+        this.unwatch(uid, func);
+
+        this.socksFuncMap.delete(socket.id);
+    }
+}
+
+
+// 以下为构造一个数据集
 
 // users
 let uController = new UsersController();
@@ -1473,13 +1555,50 @@ userTeamsController.updateUserTIDs(u2_id, [t1_tid, t2_tid]);
 
 let idxViewCtl = new IndexViewController(uController, userTeamsController);
 
-let iv = idxViewCtl.getUserIndexView(u1_id, (v) => {
-    console.log("<<<<<<< >>>>>>>");
-    console.log("idx view changed", JSON.stringify(v.toJson(), null, "  "));
-});
+let idxViewWsHandler = new IndexViewWsHandler(idxViewCtl);
 
-console.log("get idx view", JSON.stringify(iv.toJson(), null, "  "));
 
-u1.desc = "hahaha I changed my desc from hello world to this";
-uController.updateUser(u1.id, u1)
 
+// let iv = idxViewCtl.getUserIndexView(u1_id, (v) => {
+//     console.log("<<<<<<< >>>>>>>");
+//     console.log("idx view changed", JSON.stringify(v.toJson(), null, "  "));
+// });
+
+// console.log("get idx view", JSON.stringify(iv.toJson(), null, "  "));
+
+// u1.desc = "hahaha I changed my desc from hello world to this";
+// uController.updateUser(u1.id, u1)
+
+module.exports = {
+    REvent,
+    EventManager,
+    BaseReactive,
+    MapReactive,
+    User,
+    UsersController,
+    TeamMemberInfo,
+    TeamMemberInfoController,
+    TeamMember,
+    TeamMembers,
+    TeamMembersController,
+    Document,
+    DocumentsController,
+    Documents,
+    ProjectDocumentsController,
+    ProjectInfo,
+    Project,
+    ProjectInfosController,
+    ProjectsController,
+    Projects,
+    TeamProjectsController,
+    TeamInfo,
+    TeamInfoController,
+    Team,
+    TeamsController,
+    Teams,
+    UserTeamsController,
+    IndexView,
+    IndexViewController,
+    IndexViewWsHandler,
+    idxViewWsHandler,
+};

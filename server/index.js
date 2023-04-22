@@ -1,6 +1,7 @@
 const { createServer } = require("http");
 const { Server } = require("socket.io");
 const { instrument } = require("@socket.io/admin-ui");
+const { idxViewWsHandler } = require("./xx");
 
 const vuex = require("vuex");
 
@@ -22,8 +23,8 @@ const store = vuex.createStore({
         ]
     },
     actions: {
-        chat({state, commit}, e) {
-            return {xx: 123, e}
+        chat({ state, commit }, e) {
+            return { xx: 123, e };
         }
     },
     mutations: {
@@ -54,15 +55,21 @@ const rooms = new Set(["longroom"]);
 io.on("connection", (socket) => {
     socket.join("longroom");
 
+    socket.on("watchIndexView", payload => {
+        let event = "watchIndexView";
+        console.log("on watchIndexView", event, payload);
+        idxViewWsHandler.handleGetIndexView(socket, event, payload);
+    });
+
     socket.onAny(async (event, payload) => {
         console.log("got ", event);
         // 默认加入 longroom
 
-        if (event === "online_chat") {
+        if (event === "chat") {
             console.log("got a chat mutation : ", payload);
 
             let xx = store.commit(event, payload);
-            console.log("after commit : ", xx)
+            console.log("after commit : ", xx);
 
             io.to("longroom").emit(event, payload);
         }
