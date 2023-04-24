@@ -295,6 +295,7 @@ class TeamMember {
         this.id = user.id || "";
         this.name = user.name || "";
         this.email = user.email || "";
+        this.avatar = user.avatar || "";
         this.occupation = mi.occupation || "";
         this.role = mi.role || "";
     }
@@ -306,6 +307,7 @@ class TeamMember {
         let res = {
             id: this.id,
             name: this.name,
+            avatar: this.avatar,
             email: this.email,
             occupation: this.occupation,
             role: this.role,
@@ -1434,8 +1436,8 @@ class IndexViewWsHandler extends BaseReactive {
             idxViewJson = this.getIdxView(uid);
         }
 
-        let func = (uid, idxViewJson) => {
-            console.log("handler go idx view changed", uid, idxViewJson);
+        let func = (idxViewJson) => {
+            console.log("handler go idx view changed", idxViewJson);
 
             socket.emit("indexViewChanged", idxViewJson);
         };
@@ -1566,8 +1568,13 @@ let idxViewWsHandler = new IndexViewWsHandler(idxViewCtl);
 
 // console.log("get idx view", JSON.stringify(iv.toJson(), null, "  "));
 
-// u1.desc = "hahaha I changed my desc from hello world to this";
-// uController.updateUser(u1.id, u1)
+u1.desc = "hahaha I changed my desc from hello world to this";
+uController.updateUser(u1.id, u1)
+
+function updateUser1(key, val) {
+    u1[key] = val
+    uController.updateUser(u1.id, u1)
+}
 
 module.exports = {
     REvent,
@@ -1601,4 +1608,5 @@ module.exports = {
     IndexViewController,
     IndexViewWsHandler,
     idxViewWsHandler,
+    updateUser1
 };

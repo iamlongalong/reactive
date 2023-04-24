@@ -1,7 +1,8 @@
 const { createServer } = require("http");
-const { Server } = require("socket.io");
 const { instrument } = require("@socket.io/admin-ui");
-const { idxViewWsHandler } = require("./xx");
+const { idxViewWsHandler, updateUser1 } = require("./xx");
+
+const bigMouthWsHandler = require("./bigmouth/index");
 
 const vuex = require("vuex");
 
@@ -41,13 +42,22 @@ const store = vuex.createStore({
     }
 });
 
-const httpServer = createServer();
+const Koa = require("koa");
+const { Server } = require("socket.io");
+const static = require('koa-static');
+const path = require('path');
+
+const app = new Koa();
+app.use(static(path.join(__dirname, '../dist')));
+
+const httpServer = createServer(app.callback());
 
 const io = new Server(httpServer, {
     cors: {
-        origin: ["https://admin.socket.io", "http://127.0.0.1:8080", "http://localhost:8080"],
+        origin: ["https://admin.socket.io", "http://127.0.0.1:8080", "http://localhost:8080", "http://172.31.101.178:8080"],
         credentials: true
-    }
+    },
+    path: "/ws/"
 });
 
 const rooms = new Set(["longroom"]);
@@ -55,10 +65,19 @@ const rooms = new Set(["longroom"]);
 io.on("connection", (socket) => {
     socket.join("longroom");
 
+    // 聊天的部分
+    bigMouthWsHandler.registry(socket);
+
     socket.on("watchIndexView", payload => {
         let event = "watchIndexView";
         console.log("on watchIndexView", event, payload);
         idxViewWsHandler.handleGetIndexView(socket, event, payload);
+    });
+
+    socket.on("updateuser", payload => {
+        let key = payload.key || "desc";
+        let val = payload.value || `random val: ${new Date().getTime()}`;
+        updateUser1(key, val);
     });
 
     socket.onAny(async (event, payload) => {

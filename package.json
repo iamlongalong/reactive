@@ -5,17 +5,20 @@
   "author": "iamlongalong@gmail.com",
   "private": true,
   "scripts": {
-    "dev": "webpack-dev-server --inline --progress --config build/webpack.dev.conf.js",
+    "dev": "cross-env DEBUG=true webpack-dev-server --inline --progress --config build/webpack.dev.conf.js",
     "start": "npm run dev",
     "build": "node build/build.js"
   },
   "dependencies": {
     "@socket.io/admin-ui": "^0.5.1",
     "babel-preset-stage-0": "^6.24.1",
+    "cross-env": "^7.0.3",
     "socket.io": "^4.6.1",
     "socket.io-client": "^4.6.1",
+    "view-design": "^4.7.0",
     "vue": "^2.5.2",
     "vue-router": "^3.0.1",
+    "vue-seamless-scroll": "^1.1.23",
     "vuex": "^3.6.2"
   },
   "devDependencies": {
